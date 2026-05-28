@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Image Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080810;
+    --surface: #10101a;
+    --surface2: #18182a;
+    --surface3: #20203a;
+    --border: #252535;
+    --accent: #6d28d9;
+    --accent-bright: #8b5cf6;
+    --accent2: #0ea5e9;
+    --accent3: #f59e0b;
+    --flux: #10b981;
+    --text: #eeeef5;
+    --text-muted: #5a5a78;
+    --text-dim: #8888a8;
+    --success: #10b981;
+    --error: #f43f5e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 0%, rgba(109,40,217,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 80% 100%, rgba(14,165,233,0.06) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+
+  .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.3rem; letter-spacing: -0.03em; }
+  .logo .dot { color: var(--accent-bright); }
+  .logo-tag {
+    font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-muted); margin-top: 3px;
+  }
+
+  .model-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.7rem;
+    color: var(--flux);
+  }
+  .model-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--flux); box-shadow: 0 0 6px var(--flux); }
+
+  /* ── LAYOUT ── */
+  .layout { display: grid; grid-template-columns: 380px 1fr; gap: 16px; }
+  @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
+
+  .left-col { display: flex; flex-direction: column; gap: 14px; }
+  .right-col { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::before { content: ''; width: 3px; height: 12px; background: var(--accent-bright); border-radius: 2px; flex-shrink: 0; }
+
+  /* ── UPLOAD ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background: var(--surface2);
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent-bright); background: rgba(109,40,217,0.06); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .upload-hint { font-size: 0.72rem; color: var(--text-muted); line-height: 1.7; }
+
+  .preview-wrap {
+    margin-top: 12px; border-radius: 10px; overflow: hidden;
+    display: none; position: relative;
+  }
+  .preview-wrap img { width: 100%; max-height: 220px; object-fit: cover; display: block; border-radius: 10px; }
+  .preview-label {
+    position: absolute; bottom: 8px; left: 8px;
+    background: rgba(0,0,0,0.7); border-radius: 6px;
+    padding: 3px 8px; font-size: 0.65rem; color: #fff;
+  }
+  .change-btn {
+    display: block; width: 100%; margin-top: 8px;
+    background: var(--surface3); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 7px; padding: 7px;
+    font-family: 'DM Mono', monospace; font-size: 0.7rem;
+    cursor: pointer; transition: 0.2s;
+  }
+  .change-btn:hover { border-color: var(--accent-bright); color: var(--text); }
+
+  /* ── FORM ── */
+  label { display: block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+
+  textarea, input[type="password"] {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 13px;
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    outline: none; transition: border-color 0.2s; resize: vertical;
+  }
+  textarea { min-height: 88px; line-height: 1.6; }
+  textarea:focus, input:focus { border-color: var(--accent-bright); }
+
+  .form-row { margin-bottom: 14px; }
+
+  /* ── SCENARIOS ── */
+  .scenarios { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .sc-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 5px 12px;
+    font-family: 'DM Mono', monospace; font-size: 0.68rem;
+    color: var(--text-dim); cursor: pointer; transition: 0.2s;
+  }
+  .sc-btn:hover { border-color: var(--accent-bright); color: var(--text); background: rgba(109,40,217,0.08); }
+
+  /* ── ADVANCED ── */
+  .adv-toggle {
+    background: none; border: none; cursor: pointer;
+    font-family: 'DM Mono', monospace; font-size: 0.68rem;
+    color: var(--text-muted); letter-spacing: 0.08em;
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 0; margin-bottom: 8px;
+  }
+  .adv-toggle:hover { color: var(--text); }
+  .adv-toggle .ch { transition: transform 0.2s; display: inline-block; }
+  .adv-toggle.open .ch { transform: rotate(90deg); }
+  .adv-body { display: none; }
+  .adv-body.open { display: block; }
+
+  .slider-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .slider-val { font-size: 0.72rem; color: var(--accent-bright); }
+  input[type="range"] {
+    -webkit-appearance: none; width: 100%; height: 3px;
+    background: var(--border); border-radius: 2px; outline: none; border: none; padding: 0; margin-bottom: 12px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    background: var(--accent-bright); border-radius: 50%; cursor: pointer;
+  }
+
+  /* ── GENERATE BUTTON ── */
+  .gen-btn {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--accent) 0%, #5b21b6 100%);
+    border: none; border-radius: 10px;
+    color: white; font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 24px rgba(109,40,217,0.35);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .gen-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(109,40,217,0.5); }
+  .gen-btn:active:not(:disabled) { transform: translateY(0); }
+  .gen-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ── HOW IT WORKS (flux-kontext tip) ── */
+  .tip-box {
+    background: rgba(16,185,129,0.07);
+    border: 1px solid rgba(16,185,129,0.2);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 0.72rem;
+    color: #6ee7b7;
+    line-height: 1.7;
+  }
+  .tip-box strong { color: var(--flux); }
+
+  /* ── OUTPUT ── */
+  .output-area { flex: 1; min-height: 400px; display: flex; flex-direction: column; }
+
+  .output-empty {
+    flex: 1; border: 2px dashed var(--border);
+    border-radius: 12px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 0.75rem; gap: 12px; text-align: center; padding: 40px;
+    background: var(--surface2);
+  }
+  .output-empty-icon { font-size: 3rem; opacity: 0.3; }
+
+  .output-loading {
+    flex: 1; border: 2px dashed var(--border);
+    border-radius: 12px; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px; padding: 40px;
+    background: var(--surface2);
+  }
+
+  .spinner {
+    width: 44px; height: 44px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent-bright);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-msg { font-size: 0.78rem; color: var(--text-dim); text-align: center; line-height: 1.8; }
+
+  .progress-track { width: 220px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); border-radius: 2px; animation: prog 4s ease-in-out infinite; }
+  @keyframes prog { 0%{width:4%} 60%{width:75%} 90%{width:92%} 100%{width:95%} }
+
+  .output-result { display: none; flex-direction: column; gap: 10px; }
+  .output-result img { width: 100%; border-radius: 12px; display: block; }
+
+  .result-actions { display: flex; gap: 8px; }
+  .act-btn {
+    flex: 1; padding: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text-dim);
+    font-family: 'DM Mono', monospace; font-size: 0.72rem;
+    cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+    text-decoration: none;
+  }
+  .act-btn:hover { border-color: var(--accent-bright); color: var(--text); }
+
+  /* ── HISTORY ── */
+  .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+  .history-item { border-radius: 8px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+  .history-item:hover { border-color: var(--accent-bright); }
+  .history-item img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .history-empty { font-size: 0.72rem; color: var(--text-muted); }
+
+  /* ── ALERTS ── */
+  .alert { padding: 10px 14px; border-radius: 8px; font-size: 0.73rem; line-height: 1.6; margin-bottom: 12px; display: none; }
+  .alert-error { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; }
+  .alert-success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+
+  /* ── LOG ── */
+  .log-wrap { max-height: 120px; overflow-y: auto; }
+  .log-line { font-size: 0.65rem; line-height: 1.9; color: var(--text-muted); display: flex; gap: 10px; }
+  .log-t { color: var(--accent-bright); flex-shrink: 0; }
+  .log-line.err .log-m { color: var(--error); }
+  .log-line.ok .log-m { color: var(--success); }
+  ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* ── ENV CHECK ── */
+  .env-check { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .env-tag {
+    font-size: 0.65rem; padding: 3px 10px; border-radius: 20px;
+    background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.3); color: #fda4af;
+  }
+  .env-tag.ok { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: #6ee7b7; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <div class="logo">AI<span class="dot">·</span>IMAGE STUDIO</div>
+      <div class="logo-tag">Uso personal · Private</div>
+    </div>
+    <div class="model-badge">
+      <div class="model-badge-dot"></div>
+      flux-kontext-pro · Black Forest Labs
+    </div>
+  </header>
+
+  <div id="alertError" class="alert alert-error"></div>
+  <div id="alertSuccess" class="alert alert-success"></div>
+
+  <div class="layout">
+
+    <!-- ═══ LEFT ═══ -->
+    <div class="left-col">
+
+      <!-- UPLOAD -->
+      <div class="card">
+        <div class="card-title">Tu Foto</div>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept="image/*" onchange="handleUpload(event)">
+          <div class="upload-icon">📷</div>
+          <div class="upload-hint">Arrastrá tu foto acá<br><small style="opacity:.6">JPG/PNG · máx 10MB</small></div>
+        </div>
+        <div class="preview-wrap" id="previewWrap">
+          <img id="previewImg" src="" alt="preview">
+          <span class="preview-label" id="previewLabel">Tu foto</span>
+        </div>
+        <button class="change-btn" id="changeBtn" style="display:none" onclick="resetUpload()">🔄 Cambiar foto</button>
+      </div>
+
+      <!-- FLUX TIP -->
+      <div class="tip-box">
+        <strong>¿Cómo funciona flux-kontext-pro?</strong><br>
+        Le pasás tu foto y describís qué querés cambiar.
+        El modelo edita manteniendo tu identidad.<br><br>
+        Ejemplo de prompt:<br>
+        <em>"Change the background to a modern office. Keep the person exactly the same."</em>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="card">
+        <div class="card-title">Historial</div>
+        <div class="history-grid" id="historyGrid">
+          <span class="history-empty">Las imágenes generadas aparecerán acá</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ RIGHT ═══ -->
+    <div class="right-col">
+
+      <!-- PROMPT CARD -->
+      <div class="card">
+        <div class="card-title">Qué querés generar</div>
+
+        <div class="form-row">
+          <label>Prompt — describí el cambio en inglés</label>
+          <textarea id="prompt" placeholder="Change the background to a modern startup office. Keep the person exactly the same face, hair and expression. Professional lighting."></textarea>
+        </div>
+
+        <!-- QUICK SCENARIOS -->
+        <div class="card-title" style="margin-bottom:10px">Escenarios Rápidos</div>
+        <div class="scenarios">
+          <button class="sc-btn" onclick="useScenario('business')">💼 Negocios</button>
+          <button class="sc-btn" onclick="useScenario('casual')">👕 Casual</button>
+          <button class="sc-btn" onclick="useScenario('sport')">🏃 Deporte</button>
+          <button class="sc-btn" onclick="useScenario('city')">🌆 Ciudad</button>
+          <button class="sc-btn" onclick="useScenario('formal')">🎩 Formal</button>
+          <button class="sc-btn" onclick="useScenario('beach')">🏖️ Playa</button>
+          <button class="sc-btn" onclick="useScenario('studio')">📸 Estudio</button>
+          <button class="sc-btn" onclick="useScenario('tech')">💻 Startup</button>
+          <button class="sc-btn" onclick="useScenario('suit')">👔 Traje</button>
+          <button class="sc-btn" onclick="useScenario('outdoor')">🏔️ Naturaleza</button>
+        </div>
+
+        <!-- ADVANCED -->
+        <button class="adv-toggle" id="advBtn" onclick="toggleAdv()"><span class="ch">▶</span> Ajustes avanzados</button>
+        <div class="adv-body" id="advBody">
+          <div class="slider-row"><label style="margin:0">Guidance (creatividad)</label><span class="slider-val" id="gVal">3.5</span></div>
+          <input type="range" min="1" max="10" step="0.5" value="3.5" oninput="document.getElementById('gVal').textContent=this.value" id="guidanceR">
+          <div class="slider-row"><label style="margin:0">Steps (calidad)</label><span class="slider-val" id="sVal">28</span></div>
+          <input type="range" min="10" max="50" step="1" value="28" oninput="document.getElementById('sVal').textContent=this.value" id="stepsR">
+        </div>
+
+        <button class="gen-btn" id="genBtn" onclick="generate()" disabled>
+          <span id="genIcon">✦</span> <span id="genLabel">Generar con flux-kontext-pro</span>
+        </button>
+      </div>
+
+      <!-- OUTPUT -->
+      <div class="card output-area">
+        <div class="card-title">Resultado</div>
+
+        <div class="output-empty" id="outEmpty">
+          <div class="output-empty-icon">🖼️</div>
+          <div>Subí tu foto y escribí un prompt<br>para comenzar</div>
+        </div>
+
+        <div class="output-loading" id="outLoading">
+          <div class="spinner"></div>
+          <div class="loading-msg" id="loadMsg">Procesando con flux-kontext-pro...<br>Esto toma entre 15 y 40 segundos</div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        </div>
+
+        <div class="output-result" id="outResult">
+          <img id="resultImg" src="" alt="resultado">
+          <div class="result-actions">
+            <a id="dlBtn" class="act-btn" download="studio-result.jpg">⬇️ Descargar</a>
+            <button class="act-btn" onclick="generate()">🔄 Regenerar</button>
+            <button class="act-btn" onclick="useAsInput()">🔁 Usar como base</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOG -->
+      <div class="card">
+        <div class="card-title">Log</div>
+        <div class="log-wrap" id="logWrap">
+          <div class="log-line"><span class="log-t">00:00:00</span><span class="log-m">Sistema listo. Subí una foto para comenzar.</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───
+let imageBase64 = null;
+let history = JSON.parse(localStorage.getItem('img_history') || '[]');
+let isLoading = false;
+
+// ─── INIT ───
+window.onload = () => {
+  renderHistory();
+  checkReady();
+};
+
+// ─── UPLOAD ───
+function handleUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) return showAlert('error', 'Imagen demasiado grande. Máx 10MB.');
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    imageBase64 = ev.target.result;
+    document.getElementById('previewImg').src = imageBase64;
+    document.getElementById('previewWrap').style.display = 'block';
+    document.getElementById('previewLabel').textContent = file.name;
+    document.getElementById('changeBtn').style.display = 'block';
+    document.getElementById('uploadZone').style.display = 'none';
+    checkReady();
+    log(`Foto cargada: ${file.name}`);
+  };
+  reader.readAsDataURL(file);
+}
+
+function resetUpload() {
+  imageBase64 = null;
+  document.getElementById('previewWrap').style.display = 'none';
+  document.getElementById('changeBtn').style.display = 'none';
+  document.getElementById('uploadZone').style.display = 'block';
+  document.getElementById('fileInput').value = '';
+  checkReady();
+}
+
+// Drag & drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleUpload({ target: { files: e.dataTransfer.files } });
+});
+
+// ─── SCENARIOS ───
+const scenarios = {
+  business:  "Change the background to a sleek modern office with floor-to-ceiling windows and city view. Keep the person's face, hair and expression exactly the same. Professional natural lighting.",
+  casual:    "Change the outfit to stylish casual: clean white t-shirt and dark jeans. Keep the face and hair identical. Urban cafe background with warm bokeh light.",
+  sport:     "Change the outfit to premium athletic wear. Add a modern gym or running track background. Keep the person's face and features exactly the same. Dynamic natural lighting.",
+  city:      "Place the person in a vibrant city street at golden hour. Keep the face and hair completely unchanged. Stylish casual outfit. Cinematic travel photography style.",
+  formal:    "Dress the person in a sharp black tuxedo or elegant evening gown. Upscale event venue background. Keep face and features identical. Dramatic professional lighting.",
+  beach:     "Change the background to a tropical beach at sunset. Light summer outfit. Keep the person's face exactly the same. Warm golden hour light, travel photography.",
+  studio:    "Professional headshot on a clean neutral grey studio background. Perfect even studio lighting. Business casual outfit. Keep the face and expression identical. Sharp focus, 4K quality.",
+  tech:      "Place the person in a vibrant startup office with exposed brick, plants and monitors. Casual smart outfit. Keep the face exactly the same. Creative editorial lighting.",
+  suit:      "Change the outfit to a tailored navy business suit with a white shirt. Keep the face, hair and expression completely unchanged. Clean professional background.",
+  outdoor:   "Place the person in a beautiful mountain landscape at golden hour. Outdoor adventure outfit. Keep face and features exactly the same. Natural cinematic lighting."
+};
+
+function useScenario(key) {
+  document.getElementById('prompt').value = scenarios[key];
+  checkReady();
+  log(`Escenario: ${key}`);
+}
+
+// ─── ADVANCED ───
+function toggleAdv() {
+  const btn = document.getElementById('advBtn');
+  const body = document.getElementById('advBody');
+  btn.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+// ─── READY CHECK ───
+function checkReady() {
+  const hasImg = imageBase64 !== null;
+  const hasPrompt = document.getElementById('prompt').value.trim().length > 3;
+  document.getElementById('genBtn').disabled = !(hasImg && hasPrompt) || isLoading;
+}
+document.getElementById('prompt').addEventListener('input', checkReady);
+
+// ─── GENERATE ───
+async function generate() {
+  if (isLoading) return;
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!imageBase64 || !prompt) return;
+
+  isLoading = true;
+  setUI('loading');
+  hideAlerts();
+
+  const guidance = document.getElementById('guidanceR').value;
+  const steps = document.getElementById('stepsR').value;
+
+  log(`Enviando a flux-kontext-pro...`);
+  const t0 = Date.now();
+
+  try {
+    // POST to our Vercel API proxy
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, prompt, guidance, steps })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error del servidor');
+
+    let output = data.output;
+
+    // Poll if not done yet
+    if (data.status !== 'succeeded' && data.id) {
+      log(`Polling prediction ${data.id}...`);
+      output = await poll(data.id);
+    }
+
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    const imgUrl = Array.isArray(output) ? output[0] : output;
+
+    log(`✅ Listo en ${elapsed}s`, 'ok');
+    showResult(imgUrl);
+    addHistory(imgUrl);
+    showAlert('success', `✅ Imagen generada en ${elapsed} segundos`);
+
+  } catch (err) {
+    log(`❌ ${err.message}`, 'err');
+    showAlert('error', `Error: ${err.message}`);
+    setUI('empty');
+  } finally {
+    isLoading = false;
+    checkReady();
+  }
+}
+
+async function poll(id, max = 45) {
+  for (let i = 0; i < max; i++) {
+    await sleep(2000);
+    const r = await fetch(`/api/poll?id=${id}`);
+    const d = await r.json();
+    log(`Status: ${d.status} (${i+1}/${max})`);
+    if (d.status === 'succeeded') return d.output;
+    if (d.status === 'failed') throw new Error(d.error || 'Prediction failed');
+  }
+  throw new Error('Timeout — intentá de nuevo');
+}
+
+// ─── USE RESULT AS NEW INPUT ───
+function useAsInput() {
+  const src = document.getElementById('resultImg').src;
+  if (!src) return;
+  imageBase64 = src; // data URL or blob
+  document.getElementById('previewImg').src = src;
+  document.getElementById('previewWrap').style.display = 'block';
+  document.getElementById('changeBtn').style.display = 'block';
+  document.getElementById('uploadZone').style.display = 'none';
+  setUI('empty');
+  log('Resultado cargado como nueva imagen base');
+}
+
+// ─── UI STATES ───
+function setUI(state) {
+  document.getElementById('outEmpty').style.display = state === 'empty' ? 'flex' : 'none';
+  document.getElementById('outLoading').style.display = state === 'loading' ? 'flex' : 'none';
+  document.getElementById('outResult').style.display = state === 'result' ? 'flex' : 'none';
+  document.getElementById('genBtn').disabled = state === 'loading';
+  document.getElementById('genIcon').textContent = state === 'loading' ? '⏳' : '✦';
+  document.getElementById('genLabel').textContent = state === 'loading' ? 'Generando...' : 'Generar con flux-kontext-pro';
+}
+
+function showResult(url) {
+  const img = document.getElementById('resultImg');
+  const dl = document.getElementById('dlBtn');
+  img.src = url;
+  dl.href = url;
+  setUI('result');
+}
+
+// ─── HISTORY ───
+function addHistory(url) {
+  history.unshift({ url, t: Date.now() });
+  if (history.length > 12) history.pop();
+  localStorage.setItem('img_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const grid = document.getElementById('historyGrid');
+  if (!history.length) {
+    grid.innerHTML = '<span class="history-empty">Las imágenes generadas aparecerán acá</span>';
+    return;
+  }
+  grid.innerHTML = history.map(h =>
+    `<div class="history-item" onclick="showResult('${h.url}')"><img src="${h.url}" loading="lazy"></div>`
+  ).join('');
+}
+
+// ─── ALERTS ───
+function showAlert(type, msg) {
+  const el = document.getElementById(`alert${type === 'error' ? 'Error' : 'Success'}`);
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 7000);
+}
+function hideAlerts() {
+  document.getElementById('alertError').style.display = 'none';
+  document.getElementById('alertSuccess').style.display = 'none';
+}
+
+// ─── LOG ───
+function log(msg, type = '') {
+  const wrap = document.getElementById('logWrap');
+  const now = new Date();
+  const t = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+  const div = document.createElement('div');
+  div.className = `log-line ${type}`;
+  div.innerHTML = `<span class="log-t">${t}</span><span class="log-m">${msg}</span>`;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
