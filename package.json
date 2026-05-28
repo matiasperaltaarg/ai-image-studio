@@ -1,0 +1,6 @@
+{
+  "name": "ai-image-studio",
+  "version": "1.0.0",
+  "description": "Personal AI Image Studio with flux-kontext-pro",
+  "private": true
+}
