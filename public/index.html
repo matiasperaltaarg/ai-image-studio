@@ -156,6 +156,7 @@
     color: var(--text-dim); cursor: pointer; transition: 0.2s;
   }
   .sc-btn:hover { border-color: var(--accent-bright); color: var(--text); background: rgba(109,40,217,0.08); }
+  .provider-btn.active { border-color: var(--accent-bright); color: var(--text); background: rgba(109,40,217,0.18); }
 
   /* ── ADVANCED ── */
   .adv-toggle {
@@ -297,7 +298,7 @@
     </div>
     <div class="model-badge">
       <div class="model-badge-dot"></div>
-      flux-kontext-pro · Black Forest Labs
+      <span id="modelBadge">flux-kontext-pro · Black Forest Labs</span>
     </div>
   </header>
 
@@ -324,8 +325,18 @@
         <button class="change-btn" id="changeBtn" style="display:none" onclick="resetUpload()">🔄 Cambiar foto</button>
       </div>
 
-      <!-- FLUX TIP -->
-      <div class="tip-box">
+      <!-- PROVIDER -->
+      <div class="card">
+        <div class="card-title">Motor de IA</div>
+        <div class="scenarios" id="providerToggle">
+          <button class="sc-btn provider-btn active" data-provider="flux" onclick="selectProvider('flux')">🌀 Flux</button>
+          <button class="sc-btn provider-btn" data-provider="openai" onclick="selectProvider('openai')">🟢 OpenAI</button>
+          <button class="sc-btn provider-btn" data-provider="gemini" onclick="selectProvider('gemini')">🔷 Gemini</button>
+        </div>
+      </div>
+
+      <!-- MODEL TIP -->
+      <div class="tip-box" id="tipBox">
         <strong>¿Cómo funciona flux-kontext-pro?</strong><br>
         Le pasás tu foto y describís qué querés cambiar.
         El modelo edita manteniendo tu identidad.<br><br>
@@ -370,17 +381,19 @@
           <button class="sc-btn" onclick="useScenario('outdoor')">🏔️ Naturaleza</button>
         </div>
 
-        <!-- ADVANCED -->
-        <button class="adv-toggle" id="advBtn" onclick="toggleAdv()"><span class="ch">▶</span> Ajustes avanzados</button>
-        <div class="adv-body" id="advBody">
-          <div class="slider-row"><label style="margin:0">Guidance (creatividad)</label><span class="slider-val" id="gVal">3.5</span></div>
-          <input type="range" min="1" max="10" step="0.5" value="3.5" oninput="document.getElementById('gVal').textContent=this.value" id="guidanceR">
-          <div class="slider-row"><label style="margin:0">Steps (calidad)</label><span class="slider-val" id="sVal">28</span></div>
-          <input type="range" min="10" max="50" step="1" value="28" oninput="document.getElementById('sVal').textContent=this.value" id="stepsR">
+        <!-- ADVANCED (solo Flux) -->
+        <div id="advToggleWrap">
+          <button class="adv-toggle" id="advBtn" onclick="toggleAdv()"><span class="ch">▶</span> Ajustes avanzados</button>
+          <div class="adv-body" id="advBody">
+            <div class="slider-row"><label style="margin:0">Guidance (creatividad)</label><span class="slider-val" id="gVal">3.5</span></div>
+            <input type="range" min="1" max="10" step="0.5" value="3.5" oninput="document.getElementById('gVal').textContent=this.value" id="guidanceR">
+            <div class="slider-row"><label style="margin:0">Steps (calidad)</label><span class="slider-val" id="sVal">28</span></div>
+            <input type="range" min="10" max="50" step="1" value="28" oninput="document.getElementById('sVal').textContent=this.value" id="stepsR">
+          </div>
         </div>
 
         <button class="gen-btn" id="genBtn" onclick="generate()" disabled>
-          <span id="genIcon">✦</span> <span id="genLabel">Generar con flux-kontext-pro</span>
+          <span id="genIcon">✦</span> <span id="genLabel">Generar con Flux</span>
         </button>
       </div>
 
@@ -426,10 +439,55 @@
 let imageBase64 = null;
 let history = JSON.parse(localStorage.getItem('img_history') || '[]');
 let isLoading = false;
+let provider = localStorage.getItem('img_provider') || 'flux';
+
+// ─── PROVIDERS ───
+const providerMeta = {
+  flux: {
+    badge: 'flux-kontext-pro · Black Forest Labs',
+    genLabel: 'Generar con Flux',
+    loading: 'Procesando con flux-kontext-pro...<br>Esto toma entre 15 y 40 segundos',
+    tip: `<strong>¿Cómo funciona flux-kontext-pro?</strong><br>Le pasás tu foto y describís qué querés cambiar. El modelo edita manteniendo tu identidad.<br><br>Ejemplo de prompt:<br><em>"Change the background to a modern office. Keep the person exactly the same."</em>`,
+    showAdvanced: true
+  },
+  openai: {
+    badge: 'gpt-image-1 · OpenAI',
+    genLabel: 'Generar con OpenAI',
+    loading: 'Procesando con gpt-image-1 (OpenAI)...<br>Esto toma entre 10 y 30 segundos',
+    tip: `<strong>¿Cómo funciona gpt-image-1?</strong><br>OpenAI edita tu foto siguiendo el prompt, con buen manejo de texto y detalles finos.<br><br>Ejemplo de prompt:<br><em>"Change the background to a modern office. Keep the person exactly the same."</em>`,
+    showAdvanced: false
+  },
+  gemini: {
+    badge: 'gemini-2.5-flash-image · Google',
+    genLabel: 'Generar con Gemini',
+    loading: 'Procesando con Gemini (nano banana)...<br>Esto toma entre 10 y 30 segundos',
+    tip: `<strong>¿Cómo funciona Gemini?</strong><br>Gemini edita tu foto conservando la composición general. Rápido y con buen entendimiento de escenas.<br><br>Ejemplo de prompt:<br><em>"Change the background to a modern office. Keep the person exactly the same."</em>`,
+    showAdvanced: false
+  }
+};
+
+function applyProviderUI(p) {
+  const meta = providerMeta[p];
+  document.querySelectorAll('.provider-btn').forEach(b => b.classList.toggle('active', b.dataset.provider === p));
+  document.getElementById('modelBadge').textContent = meta.badge;
+  document.getElementById('tipBox').innerHTML = meta.tip;
+  document.getElementById('advToggleWrap').style.display = meta.showAdvanced ? 'block' : 'none';
+  if (!isLoading) document.getElementById('genLabel').textContent = meta.genLabel;
+  document.getElementById('loadMsg').innerHTML = meta.loading;
+}
+
+function selectProvider(p) {
+  if (isLoading) return;
+  provider = p;
+  localStorage.setItem('img_provider', p);
+  applyProviderUI(p);
+  log(`Motor seleccionado: ${p}`);
+}
 
 // ─── INIT ───
 window.onload = () => {
   renderHistory();
+  applyProviderUI(provider);
   checkReady();
 };
 
@@ -521,7 +579,7 @@ async function generate() {
   const guidance = document.getElementById('guidanceR').value;
   const steps = document.getElementById('stepsR').value;
 
-  log(`Enviando a flux-kontext-pro...`);
+  log(`Enviando a ${provider}...`);
   const t0 = Date.now();
 
   try {
@@ -529,7 +587,7 @@ async function generate() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64, prompt, guidance, steps })
+      body: JSON.stringify({ provider, imageBase64, prompt, guidance, steps })
     });
 
     const data = await res.json();
@@ -593,7 +651,7 @@ function setUI(state) {
   document.getElementById('outResult').style.display = state === 'result' ? 'flex' : 'none';
   document.getElementById('genBtn').disabled = state === 'loading';
   document.getElementById('genIcon').textContent = state === 'loading' ? '⏳' : '✦';
-  document.getElementById('genLabel').textContent = state === 'loading' ? 'Generando...' : 'Generar con flux-kontext-pro';
+  document.getElementById('genLabel').textContent = state === 'loading' ? 'Generando...' : providerMeta[provider].genLabel;
 }
 
 function showResult(url) {
